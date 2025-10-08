@@ -11,6 +11,7 @@ import (
 
 	config "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config"
 	handler "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/handler"
+	middleware "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/middleware"
 	storage "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 	chi "github.com/go-chi/chi/v5"
 )
@@ -24,6 +25,11 @@ func main() {
 	handler := handler.NewHandler(storage, cfg.BaseURL)
 
 	r := chi.NewRouter()
+
+	loggerMiddleware, _ := middleware.NewLogger()
+	defer loggerMiddleware.Logger.Sync()
+
+	r.Use(loggerMiddleware.LoggingMiddleware)
 	// переход по оригинальной ссылке
 	r.Get("/{id}", handler.RedirectURL)
 	// создание коротного url
