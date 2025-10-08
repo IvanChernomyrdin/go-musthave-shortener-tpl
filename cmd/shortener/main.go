@@ -16,8 +16,12 @@ import (
 )
 
 func main() {
+	//подключаем конфиг и проверяем его целостность данных
+	cfg := config.NewConfig()
+	cfg.Validate()
+
 	storage := storage.NewMemoryStorage()
-	handler := handler.NewHandler(storage, config.HOST)
+	handler := handler.NewHandler(storage, cfg.BaseURL)
 
 	r := chi.NewRouter()
 	// переход по оригинальной ссылке
@@ -27,11 +31,11 @@ func main() {
 
 	// все остальные запросы
 	r.NotFound(handler.NotFoundHandler)
-	r.MethodNotAllowed(handler.NotFoundHandler)
+	r.MethodNotAllowed(handler.MethodNotAllowedHandler)
 
 	//создаём червер и передаёт туда наш chi
 	server := &http.Server{
-		Addr:    config.Addr,
+		Addr:    cfg.ServerAddress,
 		Handler: r,
 	}
 

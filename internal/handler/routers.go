@@ -72,3 +72,7 @@ func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Invalid request", http.StatusBadRequest)
 }
+
+func (h *Handler) MethodNotAllowedHandler(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
