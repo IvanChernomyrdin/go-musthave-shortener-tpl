@@ -41,7 +41,7 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 	shortID := h.storage.Save(originalURL)
 	shortUIL := h.baseURL + "/" + shortID
 
-	w.Header().Set("Cintent-Type", "text/plain")
+	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(shortUIL))
 }
@@ -55,7 +55,7 @@ func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/")
 
 	if id == "" {
-		http.Error(w, "ID not be allowed", http.StatusBadRequest)
+		http.Error(w, "ID cannot be empty", http.StatusBadRequest)
 		return
 	}
 
