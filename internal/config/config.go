@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -21,6 +22,13 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.BaseURL, "b", HOST, "Base URL for shortened links")
 
 	flag.Parse()
+
+	if envAddr := os.Getenv("SERVER_ADDRESS"); envAddr != "" {
+		cfg.ServerAddress = envAddr
+	}
+	if envBaseURL := os.Getenv("BASE_URL"); envBaseURL != "" {
+		cfg.BaseURL = envBaseURL
+	}
 
 	cfg.Port = cfg.extractPort()
 
