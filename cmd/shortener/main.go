@@ -34,6 +34,8 @@ func main() {
 	r.Get("/{id}", handler.RedirectURL)
 	// создание коротного url
 	r.Post("/", handler.CreateShortURL)
+	// {"url":"<some_url>"} получает и отдаёт {"result":"<short_url>"}
+	r.Post("/api/shorten", handler.CreateShortURLJson)
 
 	// все остальные запросы
 	r.NotFound(handler.NotFoundHandler)

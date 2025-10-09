@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/model"
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 )
 
@@ -18,6 +20,34 @@ func NewHandler(storage storage.URLStorage, baseURL string) *Handler {
 		storage: storage,
 		baseURL: baseURL,
 	}
+}
+
+func (h *Handler) CreateShortURLJson(w http.ResponseWriter, r *http.Request) {
+	var shortUrlJson model.ShortUrlJson
+	var shortUrlJsonResult model.ShortUrlJsonResult
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&shortUrlJson); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(shortUrlJson.URL) == "" {
+		http.Error(w, "URL not be empty", http.StatusBadRequest)
+	}
+
+	shortID := h.storage.Save(shortUrlJson.URL)
+	shortURL := h.baseURL + "/" + shortID
+
+	shortUrlJsonResult.Result = shortURL
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(shortUrlJsonResult)
+
 }
 
 func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {

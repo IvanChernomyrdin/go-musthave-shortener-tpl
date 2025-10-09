@@ -2,12 +2,14 @@ package handler
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	config "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config"
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/model"
 	storage "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -269,6 +271,74 @@ func TestRedirectURL(t *testing.T) {
 			body := strings.TrimSpace(rr.Body.String())
 			if test.expectedBody != "" && body != test.expectedBody {
 				t.Errorf("Handler return unexpected body: got '%v', want '%v'", body, test.expectedBody)
+			}
+		})
+	}
+}
+
+func TestCreateShortURLJson(t *testing.T) {
+	//создали хранилище
+	mockStorage := storage.NewMemoryStorage()
+	//создали handler
+	handler := NewHandler(mockStorage, config.HOST)
+
+	tests := []struct {
+		name       string
+		request    model.ShortUrlJson // запрос
+		wantStatus int                // ожидаемый статус
+		wantError  bool               // ожидаем ошибку?
+	}{
+		{
+			name:       "успешный запрос",
+			request:    model.ShortUrlJson{URL: "https://yandex.ru"},
+			wantStatus: http.StatusCreated,
+			wantError:  false,
+		},
+		{
+			name:       "пустой URL",
+			request:    model.ShortUrlJson{URL: ""},
+			wantStatus: http.StatusBadRequest,
+			wantError:  true,
+		},
+		{
+			name:       "URL с пробелами",
+			request:    model.ShortUrlJson{URL: "   "},
+			wantStatus: http.StatusBadRequest,
+			wantError:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			body, _ := json.Marshal(test.request)
+
+			// создаём запрос
+			req := httptest.NewRequest("POST", "/api/shorten", bytes.NewReader(body))
+			// заголовок json
+			req.Header.Set("Content-Type", "application/json")
+			// записываем всё это в recover
+			res := httptest.NewRecorder()
+			// выполняем функцию с нашими данными
+			handler.CreateShortURLJson(res, req)
+
+			// проверяем по ошибкам
+			if res.Code != test.wantStatus {
+				t.Errorf("Status got: %v, want: %v", res.Code, test.wantStatus)
+			}
+			if !test.wantError {
+				contentType := res.Header().Get("Content-Type")
+				if contentType != "application/json" {
+					t.Error("Content-Type should be application/json")
+				}
+			}
+			if !test.wantError && res.Code == test.wantStatus {
+				var response model.ShortUrlJsonResult
+				if err := json.Unmarshal(res.Body.Bytes(), &response); err != nil {
+					t.Error("JSON not valid")
+				}
+				if response.Result == "" {
+					t.Error("Response result not be empty")
+				}
 			}
 		})
 	}
