@@ -29,6 +29,10 @@ func main() {
 	loggerMiddleware, _ := middleware.NewLogger()
 	defer loggerMiddleware.Logger.Sync()
 
+	// gzip компрессия и декомпрессия
+	r.Use(middleware.GzipDecompressMiddleware)
+	r.Use(middleware.GzipCompressMiddleware)
+	//логирование
 	r.Use(loggerMiddleware.LoggingMiddleware)
 	// переход по оригинальной ссылке
 	r.Get("/{id}", handler.RedirectURL)
@@ -41,7 +45,7 @@ func main() {
 	r.NotFound(handler.NotFoundHandler)
 	r.MethodNotAllowed(handler.MethodNotAllowedHandler)
 
-	//создаём червер и передаёт туда наш chi
+	//создаём сервер и передаём туда наш chi
 	server := &http.Server{
 		Addr:    cfg.ServerAddress,
 		Handler: r,
