@@ -11,6 +11,7 @@ type Config struct {
 	ServerAddress string
 	BaseURL       string
 	Port          string
+	FileStorage   string
 }
 
 const HOST = "http://localhost:8080"
@@ -20,6 +21,7 @@ func NewConfig() *Config {
 
 	flag.StringVar(&cfg.ServerAddress, "a", "localhost:8080", "HTTP server address (host:port)")
 	flag.StringVar(&cfg.BaseURL, "b", HOST, "Base URL for shortened links")
+	flag.StringVar(&cfg.FileStorage, "f", "internal/config/storage/file_storage.json", "File name where the data will be stored shorts url")
 
 	flag.Parse()
 
@@ -28,6 +30,9 @@ func NewConfig() *Config {
 	}
 	if envBaseURL := os.Getenv("BASE_URL"); envBaseURL != "" {
 		cfg.BaseURL = envBaseURL
+	}
+	if envFileStorage := os.Getenv("FILE_STORAGE_PATH"); envFileStorage != "" {
+		cfg.FileStorage = envFileStorage
 	}
 
 	cfg.Port = cfg.extractPort()

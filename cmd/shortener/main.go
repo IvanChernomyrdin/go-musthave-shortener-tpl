@@ -21,8 +21,12 @@ func main() {
 	cfg := config.NewConfig()
 	cfg.Validate()
 
-	storage := storage.NewMemoryStorage()
-	handler := handler.NewHandler(storage, cfg.BaseURL)
+	store, err := storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
+	if err != nil {
+		log.Fatalf("Error to create file storage: %v", err)
+	}
+
+	handler := handler.NewHandler(store, cfg.BaseURL)
 
 	r := chi.NewRouter()
 
