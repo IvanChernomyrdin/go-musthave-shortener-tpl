@@ -118,6 +118,10 @@ func TestIntegration(t *testing.T) {
 		err = Ping()
 		assert.NoError(t, err)
 
+		//получаем DB
+		DB = GetDB()
+		require.NotNil(t, DB)
+
 		//выполняем простой запрос
 		var result int
 		err = DB.QueryRow(`SELECT 1`).Scan(&result)
