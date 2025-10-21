@@ -1,10 +1,10 @@
 package model
 
-type ShortUrlJson struct {
+type ShortURLJSON struct {
 	URL string `json:"url"`
 }
 
-type ShortUrlJsonResult struct {
+type ShortURLJSONResult struct {
 	Result string `json:"result"`
 }
 
