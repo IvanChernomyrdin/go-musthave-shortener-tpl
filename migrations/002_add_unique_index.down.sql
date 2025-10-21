@@ -1,0 +1,1 @@
+ALTER TABLE short_urls DROP CONSTRAINT IF EXISTS unique_original_url;

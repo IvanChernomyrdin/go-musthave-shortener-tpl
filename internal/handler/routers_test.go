@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,8 +34,18 @@ func (m *MockStorage) Get(id string) (string, bool) {
 	url, exists := m.urls[id]
 	return url, exists
 }
-func (m *MockStorage) Save(url string) string {
-	return ""
+func (m *MockStorage) Save(url string) (string, bool) {
+	// Простая реализация для тестов
+	for id, existingURL := range m.urls {
+		if existingURL == url {
+			return id, true // конфликт
+		}
+	}
+
+	// Генерируем новый ID
+	newID := strconv.Itoa(len(m.urls) + 1)
+	m.urls[newID] = url
+	return newID, false // нет конфликта
 }
 
 func TestRouters(t *testing.T) {
