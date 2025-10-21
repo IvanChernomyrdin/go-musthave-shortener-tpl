@@ -12,6 +12,7 @@ type Config struct {
 	BaseURL       string
 	Port          string
 	FileStorage   string
+	DatabaseDSN   string
 }
 
 const HOST = "http://localhost:8080"
@@ -22,6 +23,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ServerAddress, "a", "localhost:8080", "HTTP server address (host:port)")
 	flag.StringVar(&cfg.BaseURL, "b", HOST, "Base URL for shortened links")
 	flag.StringVar(&cfg.FileStorage, "f", "internal/config/storage/file_storage.json", "File name where the data will be stored shorts url")
+	flag.StringVar(&cfg.DatabaseDSN, "d", "", "Connection string databse postgres")
 
 	flag.Parse()
 
@@ -33,6 +35,9 @@ func NewConfig() *Config {
 	}
 	if envFileStorage := os.Getenv("FILE_STORAGE_PATH"); envFileStorage != "" {
 		cfg.FileStorage = envFileStorage
+	}
+	if envDatabaseDSN := os.Getenv("DATABASE_DSN"); envDatabaseDSN != "" {
+		cfg.DatabaseDSN = envDatabaseDSN
 	}
 
 	cfg.Port = cfg.extractPort()

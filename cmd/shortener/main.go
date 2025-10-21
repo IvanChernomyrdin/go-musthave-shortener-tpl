@@ -10,6 +10,7 @@ import (
 	"time"
 
 	config "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config"
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config/db"
 	handler "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/handler"
 	middleware "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/middleware"
 	storage "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
@@ -21,6 +22,11 @@ func main() {
 	cfg := config.NewConfig()
 	cfg.Validate()
 
+	if cfg.DatabaseDSN != "" {
+		if err := db.Init(cfg.DatabaseDSN); err != nil {
+			log.Fatalf("Database init failed: %v", err)
+		}
+	}
 	store, err := storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
 	if err != nil {
 		log.Fatalf("Error to create file storage: %v", err)
@@ -40,6 +46,8 @@ func main() {
 	r.Use(loggerMiddleware.LoggingMiddleware)
 	// переход по оригинальной ссылке
 	r.Get("/{id}", handler.RedirectURL)
+	// проверка подключения db postgres
+	r.Get("/ping", handler.PingPostgres)
 	// создание коротного url
 	r.Post("/", handler.CreateShortURL)
 	// {"url":"<some_url>"} получает и отдаёт {"result":"<short_url>"}
@@ -60,7 +68,7 @@ func main() {
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil {
-			log.Fatalf("Server error: %v", err)
+			log.Fatal(err)
 		}
 	}()
 

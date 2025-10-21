@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config/db"
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/model"
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 )
@@ -105,4 +106,13 @@ func (h *Handler) NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) MethodNotAllowedHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func (h *Handler) PingPostgres(w http.ResponseWriter, r *http.Request) {
+	if err := db.Ping(); err != nil {
+		http.Error(w, "postgres database connection error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }
