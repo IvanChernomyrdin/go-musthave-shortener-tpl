@@ -3,9 +3,13 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
+	"github.com/golang-migrate/migrate/v4"
+	migratePostgres "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -40,4 +44,31 @@ func Ping() error {
 		return fmt.Errorf("подключение к базе данных postgres отсутствует")
 	}
 	return DB.Ping()
+}
+
+func GetDB() *sql.DB {
+	return DB
+}
+
+func RunMigrations(db *sql.DB) error {
+	//создаём драйвер миграции
+	driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
+	if err != nil {
+		return fmt.Errorf("ошибка создания драйвера миграции: %w", err)
+	}
+	//создаём мигратор
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres", driver)
+	if err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("ошибка применения миграций: %w", err)
+	}
+
+	//применяем миграции
+	err = m.Up()
+	if err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("ошибка применения миграций: %w", err)
+	}
+	log.Println("Миграции были применены!")
+	return nil
 }

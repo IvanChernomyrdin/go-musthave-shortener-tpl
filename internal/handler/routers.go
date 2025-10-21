@@ -24,30 +24,30 @@ func NewHandler(storage storage.URLStorage, baseURL string) *Handler {
 }
 
 func (h *Handler) CreateShortURLJson(w http.ResponseWriter, r *http.Request) {
-	var shortUrlJson model.ShortUrlJson
-	var shortUrlJsonResult model.ShortUrlJsonResult
+	var shortURLJSON model.ShortURLJSON
+	var shortURLJSONResult model.ShortURLJSONResult
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&shortUrlJson); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&shortURLJSON); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(shortUrlJson.URL) == "" {
+	if strings.TrimSpace(shortURLJSON.URL) == "" {
 		http.Error(w, "URL not be empty", http.StatusBadRequest)
 	}
 
-	shortID := h.storage.Save(shortUrlJson.URL)
+	shortID := h.storage.Save(shortURLJSON.URL)
 	shortURL := h.baseURL + "/" + shortID
 
-	shortUrlJsonResult.Result = shortURL
+	shortURLJSONResult.Result = shortURL
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(shortUrlJsonResult)
+	json.NewEncoder(w).Encode(shortURLJSONResult)
 
 }
 
