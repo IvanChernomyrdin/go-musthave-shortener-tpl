@@ -24,8 +24,8 @@ func NewHandler(storage storage.URLStorage, baseURL string) *Handler {
 }
 
 func (h *Handler) CreateShortURLJson(w http.ResponseWriter, r *http.Request) {
-	var shortURLJSON model.ShortUrlJson
-	var shortURLJSONResult model.ShortUrlJsonResult
+	var shortURLJSON model.ShortURLJSON
+	var shortURLJSONResult model.ShortURLJSONResult
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
