@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -63,20 +62,28 @@ func (fs *FileStorage) Get(id string) (string, bool) {
 	return url, exists
 }
 
-func (fs *FileStorage) Save(url string) string {
+func (fs *FileStorage) Save(originalURL string) (string, bool) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	fs.counter++
-	id := strconv.FormatInt(fs.counter, 10)
-
-	fs.urls[id] = url
-
-	if err := fs.SaveToFile(); err != nil {
-		log.Printf("Error save json data in file: %v", err)
+	// Сначала проверяем, нет ли уже такого URL
+	for id, url := range fs.urls {
+		if url == originalURL {
+			return id, true // конфликт - URL уже существует
+		}
 	}
 
-	return id
+	// Если это новый URL - создаем новую запись
+	fs.counter++
+	id := strconv.FormatInt(fs.counter, 10)
+	fs.urls[id] = originalURL
+
+	// Сохраняем в файл (вызываем существующий метод)
+	if err := fs.SaveToFile(); err != nil {
+		return id, false
+	}
+
+	return id, false
 }
 
 func (fs *FileStorage) SaveToFile() error {

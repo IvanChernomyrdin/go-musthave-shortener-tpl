@@ -15,13 +15,12 @@ type PostgresStorage struct {
 	counter int64
 }
 
-const upsertURLSQL = `
+const insertURLSQL = `
 	INSERT INTO short_urls (id, short_url, original_url) 
 	VALUES ($1, $2, $3)
-	ON CONFLICT (id) 
-	DO UPDATE SET 
-		original_url = EXCLUDED.original_url,
-		is_deleted = FALSE
+	ON CONFLICT (original_url) 
+	DO NOTHING
+	RETURNING id
 `
 
 func NewPostgresStorage(DB *sql.DB, baseURL string) (*PostgresStorage, error) {
@@ -45,38 +44,39 @@ func NewPostgresStorage(DB *sql.DB, baseURL string) (*PostgresStorage, error) {
 	}, nil
 }
 
-func (p *PostgresStorage) Save(originalURL string) string {
+func (p *PostgresStorage) Save(originalURL string) (string, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Сначала проверяем, нет ли уже такого URL в БД
-	var existingID string
-	err := p.db.QueryRow(
-		`SELECT id FROM short_urls WHERE original_url = $1 AND is_deleted = false`,
-		originalURL,
-	).Scan(&existingID)
-
-	// Если URL уже существует - возвращаем существующий ID
-	if err == nil {
-		return existingID
-	}
-
-	// Если это новый URL - создаем новую запись
 	p.counter++
 	id := strconv.FormatInt(p.counter, 10)
 	shortURL := p.baseURL + "/" + id
 
-	_, err = p.db.Exec(upsertURLSQL, id, shortURL, originalURL)
-	if err != nil {
-		return ""
+	var insertedID string
+	err := p.db.QueryRow(insertURLSQL, id, shortURL, originalURL).Scan(&insertedID)
+
+	// Если ошибка "no rows" - значит конфликт (ON CONFLICT DO NOTHING)
+	if err == sql.ErrNoRows {
+		// Находим существующий URL
+		var existingID string
+		p.db.QueryRow(
+			`SELECT id FROM short_urls WHERE original_url = $1`,
+			originalURL,
+		).Scan(&existingID)
+		return existingID, true // конфликт
 	}
 
-	return id
+	if err != nil {
+		return "", false
+	}
+
+	return insertedID, false // успешное создание
 }
+
 func (p *PostgresStorage) Get(id string) (string, bool) {
 	var originalURL string
 	err := p.db.QueryRow(
-		`SELECT "original_url" FROM "short_urls" WHERE "id" = $1 AND "is_deleted" = false`,
+		`SELECT original_url FROM short_urls WHERE id = $1 AND is_deleted = false`,
 		id,
 	).Scan(&originalURL)
 

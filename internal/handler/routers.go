@@ -40,13 +40,17 @@ func (h *Handler) CreateShortURLJson(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "URL not be empty", http.StatusBadRequest)
 	}
 
-	shortID := h.storage.Save(shortURLJSON.URL)
+	shortID, exists := h.storage.Save(shortURLJSON.URL)
 	shortURL := h.baseURL + "/" + shortID
 
 	shortURLJSONResult.Result = shortURL
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+	if exists {
+		w.WriteHeader(http.StatusConflict)
+	} else {
+		w.WriteHeader(http.StatusCreated)
+	}
 	json.NewEncoder(w).Encode(shortURLJSONResult)
 
 }
@@ -69,11 +73,15 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortID := h.storage.Save(originalURL)
+	shortID, exists := h.storage.Save(originalURL)
 	shortUIL := h.baseURL + "/" + shortID
 
 	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusCreated)
+	if exists {
+		w.WriteHeader(http.StatusConflict)
+	} else {
+		w.WriteHeader(http.StatusCreated)
+	}
 	w.Write([]byte(shortUIL))
 }
 
@@ -171,7 +179,7 @@ func (h *Handler) CreateShortURLBatch(w http.ResponseWriter, r *http.Request) {
 	// Fallback - последовательное сохранение для файлового хранилища
 	batchResponse := make([]model.BatchResponse, 0, len(batchRequests))
 	for _, req := range batchRequests {
-		shortID := h.storage.Save(req.OriginalURL)
+		shortID, _ := h.storage.Save(req.OriginalURL)
 		shortURL := h.baseURL + "/" + shortID
 
 		batchResponse = append(batchResponse, model.BatchResponse{
