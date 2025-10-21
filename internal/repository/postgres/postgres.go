@@ -49,18 +49,30 @@ func (p *PostgresStorage) Save(originalURL string) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Сначала проверяем, нет ли уже такого URL в БД
+	var existingID string
+	err := p.db.QueryRow(
+		`SELECT id FROM short_urls WHERE original_url = $1 AND is_deleted = false`,
+		originalURL,
+	).Scan(&existingID)
+
+	// Если URL уже существует - возвращаем существующий ID
+	if err == nil {
+		return existingID
+	}
+
+	// Если это новый URL - создаем новую запись
 	p.counter++
 	id := strconv.FormatInt(p.counter, 10)
 	shortURL := p.baseURL + "/" + id
 
-	_, err := p.db.Exec(upsertURLSQL, id, shortURL, originalURL)
+	_, err = p.db.Exec(upsertURLSQL, id, shortURL, originalURL)
 	if err != nil {
-		return id
+		return ""
 	}
 
 	return id
 }
-
 func (p *PostgresStorage) Get(id string) (string, bool) {
 	var originalURL string
 	err := p.db.QueryRow(
