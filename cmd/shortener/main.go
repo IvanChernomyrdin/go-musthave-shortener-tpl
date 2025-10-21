@@ -67,7 +67,7 @@ func main() {
 	// gzip компрессия и декомпрессия
 	r.Use(middleware.GzipDecompressMiddleware)
 	r.Use(middleware.GzipCompressMiddleware)
-	//логирование
+	// логирование
 	r.Use(loggerMiddleware.LoggingMiddleware)
 	// переход по оригинальной ссылке
 	r.Get("/{id}", handler.RedirectURL)
@@ -77,6 +77,8 @@ func main() {
 	r.Post("/", handler.CreateShortURL)
 	// {"url":"<some_url>"} получает и отдаёт {"result":"<short_url>"}
 	r.Post("/api/shorten", handler.CreateShortURLJson)
+	// принимает множество url для сокращения
+	r.Post("/api/shorten/batch", handler.CreateShortURLBatch)
 
 	// все остальные запросы
 	r.NotFound(handler.NotFoundHandler)
