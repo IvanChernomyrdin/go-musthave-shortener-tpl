@@ -52,7 +52,7 @@ func main() {
 		var err error
 		store, err = storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
 		if err != nil {
-			log.Fatalf("Failed to create file storage: %v", err)
+			log.Printf("Failed to create file storage: %v", err)
 		}
 		log.Println("Using file storage")
 	}
@@ -93,7 +93,7 @@ func main() {
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil {
-			log.Fatal(err)
+			log.Printf("Server error: %w", err)
 		}
 	}()
 
@@ -107,6 +107,6 @@ func main() {
 
 	//тушим сервер
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server force to shudown: %v", err)
+		log.Printf("Server force to shudown: %v", err)
 	}
 }
