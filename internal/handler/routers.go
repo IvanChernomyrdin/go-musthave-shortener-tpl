@@ -116,3 +116,71 @@ func (h *Handler) PingPostgres(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
+
+func (h *Handler) CreateShortURLBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var batchRequests []model.BatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&batchRequests); err != nil {
+		http.Error(w, "error decode json body", http.StatusBadRequest)
+		return
+	}
+
+	if len(batchRequests) == 0 {
+		http.Error(w, "body can't be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Проверяем все URL перед обработкой
+	for _, req := range batchRequests {
+		if strings.TrimSpace(req.OriginalURL) == "" {
+			http.Error(w, "url can't be empty", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Используем батч сохранение если доступно
+	if batchStorage, ok := h.storage.(interface {
+		SaveBatch(urls []string) []string
+	}); ok {
+		// Для PostgreSQL - батчевое сохранение в транзакции
+		urls := make([]string, len(batchRequests))
+		for i, req := range batchRequests {
+			urls[i] = req.OriginalURL
+		}
+
+		shortIDs := batchStorage.SaveBatch(urls)
+		batchResponse := make([]model.BatchResponse, len(batchRequests))
+
+		for i, req := range batchRequests {
+			batchResponse[i] = model.BatchResponse{
+				CorrelationID: req.CorrelationID,
+				ShortURL:      h.baseURL + "/" + shortIDs[i],
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(batchResponse)
+		return
+	}
+
+	// Fallback - последовательное сохранение для файлового хранилища
+	batchResponse := make([]model.BatchResponse, 0, len(batchRequests))
+	for _, req := range batchRequests {
+		shortID := h.storage.Save(req.OriginalURL)
+		shortURL := h.baseURL + "/" + shortID
+
+		batchResponse = append(batchResponse, model.BatchResponse{
+			CorrelationID: req.CorrelationID,
+			ShortURL:      shortURL,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(batchResponse)
+}
