@@ -284,25 +284,25 @@ func TestCreateShortURLJson(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		request    model.ShortUrlJson // запрос
+		request    model.ShortURLJSON // запрос
 		wantStatus int                // ожидаемый статус
 		wantError  bool               // ожидаем ошибку?
 	}{
 		{
 			name:       "успешный запрос",
-			request:    model.ShortUrlJson{URL: "https://yandex.ru"},
+			request:    model.ShortURLJSON{URL: "https://yandex.ru"},
 			wantStatus: http.StatusCreated,
 			wantError:  false,
 		},
 		{
 			name:       "пустой URL",
-			request:    model.ShortUrlJson{URL: ""},
+			request:    model.ShortURLJSON{URL: ""},
 			wantStatus: http.StatusBadRequest,
 			wantError:  true,
 		},
 		{
 			name:       "URL с пробелами",
-			request:    model.ShortUrlJson{URL: "   "},
+			request:    model.ShortURLJSON{URL: "   "},
 			wantStatus: http.StatusBadRequest,
 			wantError:  true,
 		},
@@ -332,7 +332,7 @@ func TestCreateShortURLJson(t *testing.T) {
 				}
 			}
 			if !test.wantError && res.Code == test.wantStatus {
-				var response model.ShortUrlJsonResult
+				var response model.ShortURLJSONResult
 				if err := json.Unmarshal(res.Body.Bytes(), &response); err != nil {
 					t.Error("JSON not valid")
 				}

@@ -13,6 +13,7 @@ import (
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config/db"
 	handler "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/handler"
 	middleware "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/middleware"
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/repository/postgres"
 	storage "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 	chi "github.com/go-chi/chi/v5"
 )
@@ -22,14 +23,38 @@ func main() {
 	cfg := config.NewConfig()
 	cfg.Validate()
 
+	var store storage.URLStorage
+
+	// Если есть бд берём бд, или берём файл
 	if cfg.DatabaseDSN != "" {
 		if err := db.Init(cfg.DatabaseDSN); err != nil {
-			log.Fatalf("Database init failed: %v", err)
+			log.Printf("Database unavailable, using file storage: %v", err)
+		} else {
+			defer db.DB.Close()
+
+			// Запускаем миграции
+			if err := db.RunMigrations(db.DB); err != nil {
+				log.Printf("Migrations failed: %v", err)
+			}
+
+			// Используем PostgreSQL storage (НЕ игнорируем ошибку!)
+			postgresStore, err := postgres.NewPostgresStorage(db.DB, cfg.BaseURL)
+			if err != nil {
+				log.Printf("Failed to create postgres storage: %v", err)
+			} else {
+				store = postgresStore
+				log.Println("Using PostgreSQL storage")
+			}
 		}
 	}
-	store, err := storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
-	if err != nil {
-		log.Fatalf("Error to create file storage: %v", err)
+
+	if store == nil {
+		var err error
+		store, err = storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
+		if err != nil {
+			log.Printf("Failed to create file storage: %v", err)
+		}
+		log.Println("Using file storage")
 	}
 
 	handler := handler.NewHandler(store, cfg.BaseURL)
@@ -68,7 +93,7 @@ func main() {
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil {
-			log.Fatal(err)
+			log.Printf("Server error: %v", err)
 		}
 	}()
 
@@ -82,6 +107,6 @@ func main() {
 
 	//тушим сервер
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server force to shudown: %v", err)
+		log.Printf("Server force to shudown: %v", err)
 	}
 }
