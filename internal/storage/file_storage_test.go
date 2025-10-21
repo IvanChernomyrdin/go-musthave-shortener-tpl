@@ -18,7 +18,7 @@ func TestGetAndSave(t *testing.T) {
 	}
 	originalURL := "https://yandex.ru"
 	// сохраняем
-	shortID := storage.Save(originalURL)
+	shortID, _ := storage.Save(originalURL)
 
 	// должны получить ID
 	if shortID == "" {
