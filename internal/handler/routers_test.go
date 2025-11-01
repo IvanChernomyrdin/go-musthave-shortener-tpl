@@ -11,17 +11,12 @@ import (
 	"testing"
 
 	config "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config"
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/middleware"
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/model"
 	storage "github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
-
-type contextKey string
-
-const (
-	testUserIDKey contextKey = "userID"
 )
 
 type MockStorage struct {
@@ -192,7 +187,7 @@ func TestRouters(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if tt.userID != "" {
-				ctx := context.WithValue(req.Context(), testUserIDKey, tt.userID)
+				ctx := context.WithValue(req.Context(), middleware.UserIDKey, tt.userID)
 				req = req.WithContext(ctx)
 			}
 
@@ -266,7 +261,7 @@ func TestCreateTestURL(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if test.userID != "" {
-				ctx := context.WithValue(req.Context(), testUserIDKey, test.userID)
+				ctx := context.WithValue(req.Context(), middleware.UserIDKey, test.userID)
 				req = req.WithContext(ctx)
 			}
 
@@ -428,7 +423,7 @@ func TestCreateShortURLJson(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if test.userID != "" {
-				ctx := context.WithValue(req.Context(), testUserIDKey, test.userID)
+				ctx := context.WithValue(req.Context(), middleware.UserIDKey, test.userID)
 				req = req.WithContext(ctx)
 			}
 
@@ -499,7 +494,7 @@ func TestGetUserURLs(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if test.userID != "" {
-				ctx := context.WithValue(req.Context(), testUserIDKey, test.userID)
+				ctx := context.WithValue(req.Context(), middleware.UserIDKey, test.userID)
 				req = req.WithContext(ctx)
 			}
 
