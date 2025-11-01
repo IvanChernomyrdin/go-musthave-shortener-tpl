@@ -14,6 +14,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type contextKey string
+
+const (
+	userIDKey contextKey = "userID"
+)
+
 var encryptionKey = []byte(config.EncryptionKey)
 
 func CookieMiddleware(next http.Handler) http.Handler {
@@ -32,7 +38,7 @@ func CookieMiddleware(next http.Handler) http.Handler {
 				setEncryptedCookie(w, userID)
 			}
 		}
-		ctx := context.WithValue(r.Context(), "userID", userID)
+		ctx := context.WithValue(r.Context(), userIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -59,6 +59,6 @@ func TestGetAndSave(t *testing.T) {
 	}
 
 	if len(otherUserURLs) != 0 {
-		t.Errorf("Other user should have 0 urls, got %d", otherUserURLs)
+		t.Errorf("Other user should have 0 URLs, got %d", len(otherUserURLs))
 	}
 }

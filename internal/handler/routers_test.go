@@ -18,6 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type contextKey string
+
+const (
+	testUserIDKey contextKey = "userID"
+)
+
 type MockStorage struct {
 	urls map[string]URLRecordMock
 }
@@ -186,7 +192,7 @@ func TestRouters(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if tt.userID != "" {
-				ctx := context.WithValue(req.Context(), "userID", tt.userID)
+				ctx := context.WithValue(req.Context(), testUserIDKey, tt.userID)
 				req = req.WithContext(ctx)
 			}
 
@@ -260,7 +266,7 @@ func TestCreateTestURL(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if test.userID != "" {
-				ctx := context.WithValue(req.Context(), "userID", test.userID)
+				ctx := context.WithValue(req.Context(), testUserIDKey, test.userID)
 				req = req.WithContext(ctx)
 			}
 
@@ -422,7 +428,7 @@ func TestCreateShortURLJson(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if test.userID != "" {
-				ctx := context.WithValue(req.Context(), "userID", test.userID)
+				ctx := context.WithValue(req.Context(), testUserIDKey, test.userID)
 				req = req.WithContext(ctx)
 			}
 
@@ -493,7 +499,7 @@ func TestGetUserURLs(t *testing.T) {
 
 			// Добавляем userID в контекст если он указан
 			if test.userID != "" {
-				ctx := context.WithValue(req.Context(), "userID", test.userID)
+				ctx := context.WithValue(req.Context(), testUserIDKey, test.userID)
 				req = req.WithContext(ctx)
 			}
 
