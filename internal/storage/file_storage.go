@@ -10,10 +10,20 @@ import (
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/model"
 )
 
+type URLRecord struct {
+	OriginalURL string
+	UserID      string
+}
+
+type OriginalAndShortURLs struct {
+	OriginalURL string
+	ShorURL     string
+}
+
 type FileStorage struct {
 	mu       sync.RWMutex
 	filepath string
-	urls     map[string]string
+	urls     map[string]URLRecord
 	counter  int64
 	baseURL  string
 }
@@ -21,7 +31,7 @@ type FileStorage struct {
 func NewFileStorage(filepath, baseURL string) (*FileStorage, error) {
 	storage := &FileStorage{
 		filepath: filepath,
-		urls:     make(map[string]string),
+		urls:     make(map[string]URLRecord),
 		counter:  0,
 		baseURL:  baseURL,
 	}
@@ -44,8 +54,12 @@ func (fs *FileStorage) loadFromFile() error {
 	if err := json.Unmarshal(data, &storages); err != nil {
 		return err
 	}
+	fs.urls = make(map[string]URLRecord)
 	for _, storage := range storages {
-		fs.urls[storage.ID] = storage.OriginalURL
+		fs.urls[storage.ID] = URLRecord{
+			OriginalURL: storage.OriginalURL,
+			UserID:      storage.UserID,
+		}
 
 		if id, err := strconv.ParseInt(storage.ID, 10, 64); err == nil && id > fs.counter {
 			fs.counter = id
@@ -59,16 +73,16 @@ func (fs *FileStorage) Get(id string) (string, bool) {
 	defer fs.mu.RUnlock()
 
 	url, exists := fs.urls[id]
-	return url, exists
+	return url.OriginalURL, exists
 }
 
-func (fs *FileStorage) Save(originalURL string) (string, bool) {
+func (fs *FileStorage) Save(originalURL, userID string) (string, bool) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
 	// Сначала проверяем, нет ли уже такого URL
 	for id, url := range fs.urls {
-		if url == originalURL {
+		if url.OriginalURL == originalURL {
 			return id, true // конфликт - URL уже существует
 		}
 	}
@@ -76,7 +90,11 @@ func (fs *FileStorage) Save(originalURL string) (string, bool) {
 	// Если это новый URL - создаем новую запись
 	fs.counter++
 	id := strconv.FormatInt(fs.counter, 10)
-	fs.urls[id] = originalURL
+
+	fs.urls[id] = URLRecord{
+		OriginalURL: originalURL,
+		UserID:      userID,
+	}
 
 	// Сохраняем в файл (вызываем существующий метод)
 	if err := fs.SaveToFile(); err != nil {
@@ -89,11 +107,12 @@ func (fs *FileStorage) Save(originalURL string) (string, bool) {
 func (fs *FileStorage) SaveToFile() error {
 	var storage []model.URLStorage
 
-	for id, originalURL := range fs.urls {
+	for id, record := range fs.urls {
 		storage = append(storage, model.URLStorage{
 			ID:          id,
 			ShortURL:    fs.baseURL + "/" + id,
-			OriginalURL: originalURL,
+			OriginalURL: record.OriginalURL,
+			UserID:      record.UserID,
 		})
 	}
 	data, err := json.MarshalIndent(storage, "", "  ")
@@ -108,4 +127,22 @@ func (fs *FileStorage) SaveToFile() error {
 	}
 
 	return os.WriteFile(fs.filepath, data, 0644)
+}
+
+func (fs *FileStorage) GetURLByUser(user string) ([]OriginalAndShortURLs, error) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	var result []OriginalAndShortURLs
+
+	for id, record := range fs.urls {
+		if record.UserID == user {
+			result = append(result, OriginalAndShortURLs{
+				OriginalURL: record.OriginalURL,
+				ShorURL:     fs.baseURL + "/" + id,
+			})
+		}
+	}
+
+	return result, nil
 }

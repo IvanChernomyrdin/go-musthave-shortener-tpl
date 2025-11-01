@@ -69,10 +69,15 @@ func main() {
 	r.Use(middleware.GzipCompressMiddleware)
 	// логирование
 	r.Use(loggerMiddleware.LoggingMiddleware)
+	//получение или создание куки
+	r.Use(middleware.CookieMiddleware)
+
 	// переход по оригинальной ссылке
 	r.Get("/{id}", handler.RedirectURL)
 	// проверка подключения db postgres
 	r.Get("/ping", handler.PingPostgres)
+	// вернуть все сокращённые urls пользователя
+	r.Get("/api/user/urls", handler.GetURLByUser)
 	// создание коротного url
 	r.Post("/", handler.CreateShortURL)
 	// {"url":"<some_url>"} получает и отдаёт {"result":"<short_url>"}

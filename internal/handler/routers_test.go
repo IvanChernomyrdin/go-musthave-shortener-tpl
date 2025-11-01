@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,52 +19,87 @@ import (
 )
 
 type MockStorage struct {
-	urls map[string]string
+	urls map[string]URLRecordMock
+}
+
+type URLRecordMock struct {
+	OriginalURL string
+	UserID      string
 }
 
 func NewMockStorage() *MockStorage {
 	return &MockStorage{
-		urls: map[string]string{
-			"1": "https://ya.ru",
-			"2": "https://google.com",
+		urls: map[string]URLRecordMock{
+			"1": {
+				OriginalURL: "https://ya.ru",
+				UserID:      "user",
+			},
+			"2": {
+				OriginalURL: "https://google.com",
+				UserID:      "test",
+			},
 		},
 	}
 }
 
 func (m *MockStorage) Get(id string) (string, bool) {
 	url, exists := m.urls[id]
-	return url, exists
+	return url.OriginalURL, exists
 }
-func (m *MockStorage) Save(url string) (string, bool) {
+
+func (m *MockStorage) Save(url, userID string) (string, bool) {
 	// Простая реализация для тестов
 	for id, existingURL := range m.urls {
-		if existingURL == url {
+		if existingURL.OriginalURL == url {
 			return id, true // конфликт
 		}
 	}
 
 	// Генерируем новый ID
 	newID := strconv.Itoa(len(m.urls) + 1)
-	m.urls[newID] = url
+	m.urls[newID] = URLRecordMock{
+		OriginalURL: url,
+		UserID:      userID,
+	}
 	return newID, false // нет конфликта
 }
 
+func (m *MockStorage) GetURLByUser(userID string) ([]storage.OriginalAndShortURLs, error) {
+	var result []storage.OriginalAndShortURLs
+	for id, record := range m.urls {
+		if record.UserID == userID {
+			result = append(result, storage.OriginalAndShortURLs{
+				ShorURL:     "http://localhost:8080/" + id,
+				OriginalURL: record.OriginalURL,
+			})
+		}
+	}
+	return result, nil
+}
+
+func (m *MockStorage) Ping() error {
+	return nil
+}
+
 func TestRouters(t *testing.T) {
-	mockStorage := storage.NewMemoryStorage()
+	mockStorage := NewMockStorage()
 	handler := NewHandler(mockStorage, config.HOST)
 
-	//создаю роутер как в main
+	// создаю роутер как в main
 	r := chi.NewRouter()
 	r.Post("/", handler.CreateShortURL)
 	r.Get("/{id}", handler.RedirectURL)
+	r.Post("/api/shorten", handler.CreateShortURLJson)
+	r.Get("/api/user/urls", handler.GetURLByUser) // Добавил новый эндпоинт
 	r.NotFound(handler.NotFoundHandler)
-	r.MethodNotAllowed(handler.NotFoundHandler)
+	r.MethodNotAllowed(handler.MethodNotAllowedHandler)
 
 	tests := []struct {
 		name           string
 		method         string
 		path           string
 		body           string
+		userID         string // Добавил userID для контекста
 		expectedStatus int
 	}{
 		{
@@ -71,6 +107,7 @@ func TestRouters(t *testing.T) {
 			method:         "POST",
 			path:           "/",
 			body:           "https://example.com",
+			userID:         "test-user-1",
 			expectedStatus: http.StatusCreated,
 		},
 		{
@@ -78,6 +115,7 @@ func TestRouters(t *testing.T) {
 			method:         "POST",
 			path:           "/",
 			body:           "",
+			userID:         "test-user-1",
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -110,6 +148,26 @@ func TestRouters(t *testing.T) {
 			path:           "/unknown/path",
 			expectedStatus: http.StatusBadRequest,
 		},
+		{
+			name:           "GET /api/user/urls with user URLs",
+			method:         "GET",
+			path:           "/api/user/urls",
+			userID:         "user", // У этого пользователя есть URL в моке
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "GET /api/user/urls with no user URLs",
+			method:         "GET",
+			path:           "/api/user/urls",
+			userID:         "unknown-user", // У этого пользователя нет URL
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "GET /api/user/urls without user ID",
+			method:         "GET",
+			path:           "/api/user/urls",
+			expectedStatus: http.StatusUnauthorized,
+		},
 	}
 
 	for _, tt := range tests {
@@ -126,6 +184,12 @@ func TestRouters(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			// Добавляем userID в контекст если он указан
+			if tt.userID != "" {
+				ctx := context.WithValue(req.Context(), "userID", tt.userID)
+				req = req.WithContext(ctx)
+			}
+
 			rr := httptest.NewRecorder()
 			r.ServeHTTP(rr, req)
 
@@ -137,15 +201,16 @@ func TestRouters(t *testing.T) {
 }
 
 func TestCreateTestURL(t *testing.T) {
-	//создали хранилище
-	mockStorage := storage.NewMemoryStorage()
-	//создали handler
+	// создали хранилище
+	mockStorage := NewMockStorage()
+	// создали handler
 	handler := NewHandler(mockStorage, config.HOST)
 
 	tests := []struct {
 		name           string
 		method         string
 		body           string
+		userID         string
 		expectedStatus int
 		expectedBody   string
 		checkHeader    bool
@@ -154,14 +219,16 @@ func TestCreateTestURL(t *testing.T) {
 			name:           "Successful URL create",
 			method:         http.MethodPost,
 			body:           "https://example.com",
+			userID:         "test-user-1",
 			expectedStatus: http.StatusCreated,
-			expectedBody:   "http://localhost:8080/1",
+			expectedBody:   "http://localhost:8080/3", // Следующий ID после существующих
 			checkHeader:    true,
 		},
 		{
 			name:           "Empty URL",
 			method:         http.MethodPost,
 			body:           "",
+			userID:         "test-user-1",
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   "URL not be empty",
 			checkHeader:    false,
@@ -170,8 +237,18 @@ func TestCreateTestURL(t *testing.T) {
 			name:           "Wrong HTTP method",
 			method:         http.MethodGet,
 			body:           "http://example.com",
+			userID:         "test-user-1",
 			expectedStatus: http.StatusMethodNotAllowed,
 			expectedBody:   "Method not allowed",
+			checkHeader:    false,
+		},
+		{
+			name:           "Create URL without user ID",
+			method:         http.MethodPost,
+			body:           "https://example.com",
+			userID:         "", // Нет userID
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   "User not authenticated",
 			checkHeader:    false,
 		},
 	}
@@ -179,26 +256,30 @@ func TestCreateTestURL(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			req, err := http.NewRequest(test.method, "/", bytes.NewBufferString(test.body))
-			if err != nil {
-				t.Fatalf("Couldn't create request: %v", err)
-			}
-			rr := httptest.NewRecorder()
+			require.NoError(t, err)
 
+			// Добавляем userID в контекст если он указан
+			if test.userID != "" {
+				ctx := context.WithValue(req.Context(), "userID", test.userID)
+				req = req.WithContext(ctx)
+			}
+
+			rr := httptest.NewRecorder()
 			handler.CreateShortURL(rr, req)
 
-			if rr.Code != test.expectedStatus {
-				t.Errorf("Handler return wrong status: %v", err)
-			}
+			assert.Equal(t, test.expectedStatus, rr.Code,
+				"Handler returned wrong status: got %d, want %d", rr.Code, test.expectedStatus)
+
 			if strings.TrimSpace(rr.Body.String()) != test.expectedBody {
-				t.Errorf("Handler return unexpected body: got %v, want %v", rr.Body.String(), test.expectedBody)
+				t.Errorf("Handler returned unexpected body: got '%s', want '%s'",
+					strings.TrimSpace(rr.Body.String()), test.expectedBody)
 			}
 
 			if test.checkHeader {
 				contentType := rr.Header().Get("Content-Type")
 				expectedContentType := "text/plain"
-				if contentType != expectedContentType {
-					t.Errorf("Handler return wrong content type: got %v, want %v", contentType, expectedContentType)
-				}
+				assert.Equal(t, expectedContentType, contentType,
+					"Handler returned wrong content type: got %s, want %s", contentType, expectedContentType)
 			}
 		})
 	}
@@ -264,57 +345,68 @@ func TestRedirectURL(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			req, err := http.NewRequest(test.method, test.path, nil)
-			if err != nil {
-				t.Fatalf("Couldn't create request: %v", err)
-			}
+			require.NoError(t, err)
+
 			rr := httptest.NewRecorder()
 			handler.RedirectURL(rr, req)
 
-			if rr.Code != test.expectedStatus {
-				t.Errorf("Handler return unexpected status: got %v, want %v", rr.Code, test.expectedStatus)
-			}
+			assert.Equal(t, test.expectedStatus, rr.Code,
+				"Handler returned unexpected status: got %d, want %d", rr.Code, test.expectedStatus)
+
 			if test.expectedLocation != "" {
 				location := rr.Header().Get("Location")
-				if location != test.expectedLocation {
-					t.Errorf("Handler return wrong location in header: got %v, want %v", location, test.expectedLocation)
-				}
+				assert.Equal(t, test.expectedLocation, location,
+					"Handler returned wrong location in header: got %s, want %s", location, test.expectedLocation)
 			}
+
 			body := strings.TrimSpace(rr.Body.String())
-			if test.expectedBody != "" && body != test.expectedBody {
-				t.Errorf("Handler return unexpected body: got '%v', want '%v'", body, test.expectedBody)
+			if test.expectedBody != "" {
+				assert.Equal(t, test.expectedBody, body,
+					"Handler returned unexpected body: got '%s', want '%s'", body, test.expectedBody)
 			}
 		})
 	}
 }
 
 func TestCreateShortURLJson(t *testing.T) {
-	//создали хранилище
-	mockStorage := storage.NewMemoryStorage()
-	//создали handler
+	// создали хранилище
+	mockStorage := NewMockStorage()
+	// создали handler
 	handler := NewHandler(mockStorage, config.HOST)
 
 	tests := []struct {
 		name       string
-		request    model.ShortURLJSON // запрос
-		wantStatus int                // ожидаемый статус
-		wantError  bool               // ожидаем ошибку?
+		request    model.ShortURLJSON
+		userID     string
+		wantStatus int
+		wantError  bool
 	}{
 		{
 			name:       "успешный запрос",
 			request:    model.ShortURLJSON{URL: "https://yandex.ru"},
+			userID:     "test-user-1",
 			wantStatus: http.StatusCreated,
 			wantError:  false,
 		},
 		{
 			name:       "пустой URL",
 			request:    model.ShortURLJSON{URL: ""},
+			userID:     "test-user-1",
 			wantStatus: http.StatusBadRequest,
 			wantError:  true,
 		},
 		{
 			name:       "URL с пробелами",
 			request:    model.ShortURLJSON{URL: "   "},
+			userID:     "test-user-1",
 			wantStatus: http.StatusBadRequest,
+			wantError:  true,
+		},
+		{
+			name:       "без user ID",
+			request:    model.ShortURLJSON{URL: "https://yandex.ru"},
+			userID:     "",
+			wantStatus: http.StatusUnauthorized,
 			wantError:  true,
 		},
 	}
@@ -327,29 +419,96 @@ func TestCreateShortURLJson(t *testing.T) {
 			req := httptest.NewRequest("POST", "/api/shorten", bytes.NewReader(body))
 			// заголовок json
 			req.Header.Set("Content-Type", "application/json")
+
+			// Добавляем userID в контекст если он указан
+			if test.userID != "" {
+				ctx := context.WithValue(req.Context(), "userID", test.userID)
+				req = req.WithContext(ctx)
+			}
+
 			// записываем всё это в recover
 			res := httptest.NewRecorder()
 			// выполняем функцию с нашими данными
 			handler.CreateShortURLJson(res, req)
 
 			// проверяем по ошибкам
-			if res.Code != test.wantStatus {
-				t.Errorf("Status got: %v, want: %v", res.Code, test.wantStatus)
-			}
+			assert.Equal(t, test.wantStatus, res.Code,
+				"Status got: %d, want: %d", res.Code, test.wantStatus)
+
 			if !test.wantError {
 				contentType := res.Header().Get("Content-Type")
-				if contentType != "application/json" {
-					t.Error("Content-Type should be application/json")
+				assert.Equal(t, "application/json", contentType,
+					"Content-Type should be application/json")
+
+				if res.Code == test.wantStatus {
+					var response model.ShortURLJSONResult
+					err := json.Unmarshal(res.Body.Bytes(), &response)
+					assert.NoError(t, err, "JSON should be valid")
+					assert.NotEmpty(t, response.Result, "Response result should not be empty")
 				}
 			}
-			if !test.wantError && res.Code == test.wantStatus {
-				var response model.ShortURLJSONResult
-				if err := json.Unmarshal(res.Body.Bytes(), &response); err != nil {
-					t.Error("JSON not valid")
-				}
-				if response.Result == "" {
-					t.Error("Response result not be empty")
-				}
+		})
+	}
+}
+
+func TestGetUserURLs(t *testing.T) {
+	mockStorage := NewMockStorage()
+	handler := NewHandler(mockStorage, config.HOST)
+
+	tests := []struct {
+		name           string
+		userID         string
+		expectedStatus int
+		expectedCount  int
+	}{
+		{
+			name:           "User with URLs",
+			userID:         "user",
+			expectedStatus: http.StatusOK,
+			expectedCount:  1, // У пользователя 'user' есть 1 URL
+		},
+		{
+			name:           "Another user with URLs",
+			userID:         "test",
+			expectedStatus: http.StatusOK,
+			expectedCount:  1, // У пользователя 'test' есть 1 URL
+		},
+		{
+			name:           "User without URLs",
+			userID:         "unknown-user",
+			expectedStatus: http.StatusNoContent,
+			expectedCount:  0,
+		},
+		{
+			name:           "No user ID",
+			userID:         "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedCount:  0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/user/urls", nil)
+
+			// Добавляем userID в контекст если он указан
+			if test.userID != "" {
+				ctx := context.WithValue(req.Context(), "userID", test.userID)
+				req = req.WithContext(ctx)
+			}
+
+			rr := httptest.NewRecorder()
+			handler.GetURLByUser(rr, req)
+
+			assert.Equal(t, test.expectedStatus, rr.Code,
+				"Expected status %d, got %d", test.expectedStatus, rr.Code)
+
+			if test.expectedStatus == http.StatusOK {
+				var urls []storage.OriginalAndShortURLs
+				err := json.Unmarshal(rr.Body.Bytes(), &urls)
+				assert.NoError(t, err, "Should return valid JSON")
+				assert.Len(t, urls, test.expectedCount,
+					"Expected %d URLs, got %d", test.expectedCount, len(urls))
 			}
 		})
 	}

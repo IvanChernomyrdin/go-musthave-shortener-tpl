@@ -38,9 +38,17 @@ func (h *Handler) CreateShortURLJson(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(shortURLJSON.URL) == "" {
 		http.Error(w, "URL not be empty", http.StatusBadRequest)
+		return
 	}
 
-	shortID, exists := h.storage.Save(shortURLJSON.URL)
+	// получаем userID из контекста
+	userID, ok := r.Context().Value("userID").(string)
+	if !ok {
+		http.Error(w, "User not unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	shortID, exists := h.storage.Save(shortURLJSON.URL, userID)
 	shortURL := h.baseURL + "/" + shortID
 
 	shortURLJSONResult.Result = shortURL
@@ -73,7 +81,13 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortID, exists := h.storage.Save(originalURL)
+	userID, ok := r.Context().Value("userID").(string)
+	if !ok {
+		http.Error(w, "User not unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	shortID, exists := h.storage.Save(originalURL, userID)
 	shortUIL := h.baseURL + "/" + shortID
 
 	w.Header().Set("Content-Type", "text/plain")
@@ -150,17 +164,24 @@ func (h *Handler) CreateShortURLBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	userID, ok := r.Context().Value("userID").(string)
+	if !ok {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
 	// Используем батч сохранение если доступно
 	if batchStorage, ok := h.storage.(interface {
-		SaveBatch(urls []string) []string
+		SaveBatch(urls []string, userID string) []string
 	}); ok {
+
 		// Для PostgreSQL - батчевое сохранение в транзакции
 		urls := make([]string, len(batchRequests))
 		for i, req := range batchRequests {
 			urls[i] = req.OriginalURL
 		}
 
-		shortIDs := batchStorage.SaveBatch(urls)
+		shortIDs := batchStorage.SaveBatch(urls, userID)
 		batchResponse := make([]model.BatchResponse, len(batchRequests))
 
 		for i, req := range batchRequests {
@@ -179,7 +200,7 @@ func (h *Handler) CreateShortURLBatch(w http.ResponseWriter, r *http.Request) {
 	// Fallback - последовательное сохранение для файлового хранилища
 	batchResponse := make([]model.BatchResponse, 0, len(batchRequests))
 	for _, req := range batchRequests {
-		shortID, _ := h.storage.Save(req.OriginalURL)
+		shortID, _ := h.storage.Save(req.OriginalURL, userID)
 		shortURL := h.baseURL + "/" + shortID
 
 		batchResponse = append(batchResponse, model.BatchResponse{
@@ -191,4 +212,26 @@ func (h *Handler) CreateShortURLBatch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(batchResponse)
+}
+
+func (h *Handler) GetURLByUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(string)
+	if !ok {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	urls, err := h.storage.GetURLByUser(userID)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if len(urls) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(urls)
 }

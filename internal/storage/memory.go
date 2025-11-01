@@ -6,29 +6,30 @@ import (
 )
 
 type URLStorage interface {
-	Save(url string) (string, bool)
+	Save(url, userid string) (string, bool)
 	Get(id string) (string, bool)
+	GetURLByUser(userID string) ([]OriginalAndShortURLs, error)
 }
 type MemoryStorage struct {
 	mu      sync.RWMutex
-	url     map[string]string
+	url     map[string]URLRecord
 	counter int64
 }
 
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
-		url:     make(map[string]string),
+		url:     make(map[string]URLRecord),
 		counter: 0,
 	}
 }
 
-func (ms *MemoryStorage) Save(originalURL string) (string, bool) {
+func (ms *MemoryStorage) Save(originalURL, userID string) (string, bool) {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
 
 	// Сначала проверяем, нет ли уже такого URL
 	for id, url := range ms.url {
-		if url == originalURL {
+		if url.OriginalURL == originalURL {
 			return id, true // конфликт - URL уже существует
 		}
 	}
@@ -36,7 +37,10 @@ func (ms *MemoryStorage) Save(originalURL string) (string, bool) {
 	// Если это новый URL - создаем новую запись
 	ms.counter++
 	id := strconv.Itoa(int(ms.counter))
-	ms.url[id] = originalURL
+	ms.url[id] = URLRecord{
+		OriginalURL: originalURL,
+		UserID:      userID,
+	}
 
 	return id, false // нет конфликта
 }
@@ -46,5 +50,5 @@ func (ms *MemoryStorage) Get(id string) (string, bool) {
 	defer ms.mu.Unlock()
 
 	url, exists := ms.url[id]
-	return url, exists
+	return url.OriginalURL, exists
 }

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config/db"
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 )
 
 type PostgresStorage struct {
@@ -16,7 +17,7 @@ type PostgresStorage struct {
 }
 
 const insertURLSQL = `
-	INSERT INTO short_urls (id, short_url, original_url) 
+	INSERT INTO short_urls (id, short_url, original_url, user_id) 
 	VALUES ($1, $2, $3)
 	ON CONFLICT (original_url) 
 	DO NOTHING
@@ -44,7 +45,7 @@ func NewPostgresStorage(DB *sql.DB, baseURL string) (*PostgresStorage, error) {
 	}, nil
 }
 
-func (p *PostgresStorage) Save(originalURL string) (string, bool) {
+func (p *PostgresStorage) Save(originalURL, userID string) (string, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -53,7 +54,7 @@ func (p *PostgresStorage) Save(originalURL string) (string, bool) {
 	shortURL := p.baseURL + "/" + id
 
 	var insertedID string
-	err := p.db.QueryRow(insertURLSQL, id, shortURL, originalURL).Scan(&insertedID)
+	err := p.db.QueryRow(insertURLSQL, id, shortURL, originalURL, userID).Scan(&insertedID)
 
 	// Если ошибка "no rows" - значит конфликт (ON CONFLICT DO NOTHING)
 	if err == sql.ErrNoRows {
@@ -84,4 +85,29 @@ func (p *PostgresStorage) Get(id string) (string, bool) {
 		return "", false
 	}
 	return originalURL, true
+}
+
+func (p *PostgresStorage) GetURLByUser(userID string) ([]storage.OriginalAndShortURLs, error) {
+	rows, err := p.db.Query(`SELECT short_url, original_url FROM short_urls WHERE user_id = $1 AND is_deleted = false`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var urls []storage.OriginalAndShortURLs
+
+	for rows.Next() {
+		var shortURL, originalURL string
+		if err := rows.Scan(&shortURL, &originalURL); err != nil {
+			return nil, err
+		}
+		urls = append(urls, storage.OriginalAndShortURLs{
+			OriginalURL: originalURL,
+			ShorURL:     shortURL,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return urls, nil
 }
