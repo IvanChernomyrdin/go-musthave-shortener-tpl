@@ -18,7 +18,7 @@ type PostgresStorage struct {
 
 const insertURLSQL = `
 	INSERT INTO short_urls (id, short_url, original_url, user_id) 
-	VALUES ($1, $2, $3)
+	VALUES ($1, $2, $3, $4)
 	ON CONFLICT (original_url) 
 	DO NOTHING
 	RETURNING id
