@@ -75,7 +75,7 @@ func (m *MockStorage) GetURLByUser(userID string) ([]storage.OriginalAndShortURL
 	for id, record := range m.urls {
 		if record.UserID == userID {
 			result = append(result, storage.OriginalAndShortURLs{
-				ShorURL:     "http://localhost:8080/" + id,
+				ShortURL:    "http://localhost:8080/" + id,
 				OriginalURL: record.OriginalURL,
 			})
 		}

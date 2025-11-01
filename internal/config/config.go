@@ -16,7 +16,7 @@ type Config struct {
 }
 
 const HOST = "http://localhost:8080"
-const EncryptionKey = "32-bytes-long-key-123456789012"
+const EncryptionKey = "32-bytes-long-key-1234567890777!"
 
 func NewConfig() *Config {
 	cfg := &Config{}

@@ -16,9 +16,7 @@ import (
 
 type contextKey string
 
-const (
-	userIDKey contextKey = "userID"
-)
+const UserIDKey contextKey = "userID"
 
 var encryptionKey = []byte(config.EncryptionKey)
 
@@ -38,7 +36,7 @@ func CookieMiddleware(next http.Handler) http.Handler {
 				setEncryptedCookie(w, userID)
 			}
 		}
-		ctx := context.WithValue(r.Context(), userIDKey, userID)
+		ctx := context.WithValue(r.Context(), UserIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -103,7 +103,7 @@ func (p *PostgresStorage) GetURLByUser(userID string) ([]storage.OriginalAndShor
 		}
 		urls = append(urls, storage.OriginalAndShortURLs{
 			OriginalURL: originalURL,
-			ShorURL:     shortURL,
+			ShortURL:    shortURL,
 		})
 	}
 	if err := rows.Err(); err != nil {

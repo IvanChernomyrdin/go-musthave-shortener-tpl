@@ -17,7 +17,7 @@ type URLRecord struct {
 
 type OriginalAndShortURLs struct {
 	OriginalURL string
-	ShorURL     string
+	ShortURL    string
 }
 
 type FileStorage struct {
@@ -130,8 +130,8 @@ func (fs *FileStorage) SaveToFile() error {
 }
 
 func (fs *FileStorage) GetURLByUser(user string) ([]OriginalAndShortURLs, error) {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
 
 	var result []OriginalAndShortURLs
 
@@ -139,7 +139,7 @@ func (fs *FileStorage) GetURLByUser(user string) ([]OriginalAndShortURLs, error)
 		if record.UserID == user {
 			result = append(result, OriginalAndShortURLs{
 				OriginalURL: record.OriginalURL,
-				ShorURL:     fs.baseURL + "/" + id,
+				ShortURL:    fs.baseURL + "/" + id,
 			})
 		}
 	}

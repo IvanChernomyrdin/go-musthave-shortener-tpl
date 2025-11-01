@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config/db"
+	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/middleware"
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/model"
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
 )
@@ -42,9 +43,9 @@ func (h *Handler) CreateShortURLJson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// получаем userID из контекста
-	userID, ok := r.Context().Value("userID").(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "User not unauthorized", http.StatusUnauthorized)
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
 
@@ -81,9 +82,9 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, ok := r.Context().Value("userID").(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "User not unauthorized", http.StatusUnauthorized)
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
 
@@ -164,7 +165,7 @@ func (h *Handler) CreateShortURLBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	userID, ok := r.Context().Value("userID").(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
@@ -215,7 +216,7 @@ func (h *Handler) CreateShortURLBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetURLByUser(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("userID").(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
