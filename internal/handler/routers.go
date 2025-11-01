@@ -232,6 +232,13 @@ func (h *Handler) GetURLByUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+
+	for i := range urls {
+		if !strings.Contains(urls[i].ShortURL, "://") {
+			urls[i].ShortURL = h.baseURL + "/" + urls[i].ShortURL
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(urls)

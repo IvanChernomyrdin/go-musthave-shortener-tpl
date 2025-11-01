@@ -52,3 +52,19 @@ func (ms *MemoryStorage) Get(id string) (string, bool) {
 	url, exists := ms.url[id]
 	return url.OriginalURL, exists
 }
+
+func (ms *MemoryStorage) GetURLByUser(userID string) ([]OriginalAndShortURLs, error) {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	var urls []OriginalAndShortURLs
+	for id, record := range ms.url {
+		if record.UserID == userID {
+			urls = append(urls, OriginalAndShortURLs{
+				OriginalURL: record.OriginalURL,
+				ShortURL:    id,
+			})
+		}
+	}
+	return urls, nil
+}

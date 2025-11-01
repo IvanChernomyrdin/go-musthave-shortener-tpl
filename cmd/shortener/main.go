@@ -53,6 +53,8 @@ func main() {
 		store, err = storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
 		if err != nil {
 			log.Printf("Failed to create file storage: %v", err)
+			store = storage.NewMemoryStorage() // Всегда есть fallback
+			log.Println("Using in-memory storage")
 		}
 		log.Println("Using file storage")
 	}
