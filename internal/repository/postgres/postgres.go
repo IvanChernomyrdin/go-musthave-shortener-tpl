@@ -7,6 +7,7 @@ import (
 
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/config/db"
 	"github.com/IvanChernomyrdin/go-musthave-shortener-tpl/internal/storage"
+	"github.com/lib/pq"
 )
 
 type PostgresStorage struct {
@@ -76,13 +77,17 @@ func (p *PostgresStorage) Save(originalURL, userID string) (string, bool) {
 
 func (p *PostgresStorage) Get(id string) (string, bool) {
 	var originalURL string
+	var isDeleted bool
 	err := p.db.QueryRow(
-		`SELECT original_url FROM short_urls WHERE id = $1 AND is_deleted = false`,
+		`SELECT original_url, is_deleted FROM short_urls WHERE id = $1 AND is_deleted = false`,
 		id,
-	).Scan(&originalURL)
+	).Scan(&originalURL, &isDeleted)
 
 	if err != nil {
 		return "", false
+	}
+	if !isDeleted {
+		return "", true
 	}
 	return originalURL, true
 }
@@ -110,4 +115,18 @@ func (p *PostgresStorage) GetURLByUser(userID string) ([]storage.OriginalAndShor
 		return nil, err
 	}
 	return urls, nil
+}
+
+func (p *PostgresStorage) DeleteURLs(userID string, urlIDs []string) error {
+	if len(urlIDs) == 0 {
+		return nil
+	}
+
+	query := `UPDATE short_urls 
+			  SET is_deleted = TRUE
+			  WHERE user_id = $1
+			  	AND id = ANY($2) 
+				AND is_deleted = FALSE`
+	_, err := p.db.Exec(query, userID, pq.Array(urlIDs))
+	return err
 }

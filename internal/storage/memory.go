@@ -9,6 +9,7 @@ type URLStorage interface {
 	Save(url, userid string) (string, bool)
 	Get(id string) (string, bool)
 	GetURLByUser(userID string) ([]OriginalAndShortURLs, error)
+	DeleteURLs(userID string, urlIDs []string) error
 }
 type MemoryStorage struct {
 	mu      sync.RWMutex
@@ -67,4 +68,18 @@ func (ms *MemoryStorage) GetURLByUser(userID string) ([]OriginalAndShortURLs, er
 		}
 	}
 	return urls, nil
+}
+
+func (ms *MemoryStorage) DeleteURLs(userID string, urlIDs []string) error {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	for _, id := range urlIDs {
+		if record, exists := ms.url[id]; exists && record.UserID == userID {
+			// Помечаем как удаленное (или удаляем из мапы)
+			record.IsDeleted = true
+			ms.url[id] = record
+		}
+	}
+	return nil
 }

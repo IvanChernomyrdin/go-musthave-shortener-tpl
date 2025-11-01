@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,8 +12,9 @@ import (
 )
 
 type URLRecord struct {
-	OriginalURL string
-	UserID      string
+	OriginalURL string `json:"original_url"`
+	UserID      string `json:"user_id"`
+	IsDeleted   bool   `json:"is_deleted"`
 }
 
 type OriginalAndShortURLs struct {
@@ -42,23 +44,35 @@ func NewFileStorage(filepath, baseURL string) (*FileStorage, error) {
 }
 
 func (fs *FileStorage) loadFromFile() error {
-	var storages []model.URLStorage
-
+	// Если файла нет - это нормально
 	if _, err := os.Stat(fs.filepath); os.IsNotExist(err) {
 		return nil
 	}
+
 	data, err := os.ReadFile(fs.filepath)
 	if err != nil {
 		return err
 	}
-	if err := json.Unmarshal(data, &storages); err != nil {
-		return err
+
+	// Если файл пустой - это нормально
+	if len(data) == 0 {
+		return nil
 	}
+
+	var storages []model.URLStorage
+	if err := json.Unmarshal(data, &storages); err != nil {
+		// Если JSON невалидный, но файл не пустой - всё равно продолжаем
+		// с пустым хранилищем вместо падения
+		log.Printf("Warning: failed to parse storage file, starting with empty storage: %v", err)
+		return nil
+	}
+
 	fs.urls = make(map[string]URLRecord)
 	for _, storage := range storages {
 		fs.urls[storage.ID] = URLRecord{
 			OriginalURL: storage.OriginalURL,
 			UserID:      storage.UserID,
+			IsDeleted:   storage.IsDeleted, // не забудь это поле
 		}
 
 		if id, err := strconv.ParseInt(storage.ID, 10, 64); err == nil && id > fs.counter {
@@ -139,10 +153,30 @@ func (fs *FileStorage) GetURLByUser(user string) ([]OriginalAndShortURLs, error)
 		if record.UserID == user {
 			result = append(result, OriginalAndShortURLs{
 				OriginalURL: record.OriginalURL,
-				ShortURL:    fs.baseURL + "/" + id,
-			})
+				ShortURL:    fs.baseURL + "/" + id})
 		}
 	}
 
 	return result, nil
+}
+
+func (fs *FileStorage) DeleteURLs(userID string, urlIDs []string) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	// Загружаем данные из файла
+	if err := fs.loadFromFile(); err != nil {
+		return err
+	}
+
+	// Помечаем URL как удаленные в памяти
+	for _, id := range urlIDs {
+		if record, exists := fs.urls[id]; exists && record.UserID == userID {
+			record.IsDeleted = true
+			fs.urls[id] = record
+		}
+	}
+
+	// Сохраняем обратно в файл
+	return fs.SaveToFile()
 }

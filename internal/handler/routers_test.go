@@ -26,6 +26,7 @@ type MockStorage struct {
 type URLRecordMock struct {
 	OriginalURL string
 	UserID      string
+	IsDeleted   bool
 }
 
 func NewMockStorage() *MockStorage {
@@ -34,24 +35,29 @@ func NewMockStorage() *MockStorage {
 			"1": {
 				OriginalURL: "https://ya.ru",
 				UserID:      "user",
+				IsDeleted:   false,
 			},
 			"2": {
 				OriginalURL: "https://google.com",
 				UserID:      "test",
+				IsDeleted:   false,
 			},
 		},
 	}
 }
 
 func (m *MockStorage) Get(id string) (string, bool) {
-	url, exists := m.urls[id]
-	return url.OriginalURL, exists
+	record, exists := m.urls[id]
+	if !exists || record.IsDeleted {
+		return "", false
+	}
+	return record.OriginalURL, true
 }
 
 func (m *MockStorage) Save(url, userID string) (string, bool) {
 	// Простая реализация для тестов
 	for id, existingURL := range m.urls {
-		if existingURL.OriginalURL == url {
+		if existingURL.OriginalURL == url && !existingURL.IsDeleted {
 			return id, true // конфликт
 		}
 	}
@@ -61,6 +67,7 @@ func (m *MockStorage) Save(url, userID string) (string, bool) {
 	m.urls[newID] = URLRecordMock{
 		OriginalURL: url,
 		UserID:      userID,
+		IsDeleted:   false,
 	}
 	return newID, false // нет конфликта
 }
@@ -68,7 +75,7 @@ func (m *MockStorage) Save(url, userID string) (string, bool) {
 func (m *MockStorage) GetURLByUser(userID string) ([]storage.OriginalAndShortURLs, error) {
 	var result []storage.OriginalAndShortURLs
 	for id, record := range m.urls {
-		if record.UserID == userID {
+		if record.UserID == userID && !record.IsDeleted {
 			result = append(result, storage.OriginalAndShortURLs{
 				ShortURL:    "http://localhost:8080/" + id,
 				OriginalURL: record.OriginalURL,
@@ -76,6 +83,17 @@ func (m *MockStorage) GetURLByUser(userID string) ([]storage.OriginalAndShortURL
 		}
 	}
 	return result, nil
+}
+
+// Добавляем недостающий метод
+func (m *MockStorage) DeleteURLs(userID string, urlIDs []string) error {
+	for _, id := range urlIDs {
+		if record, exists := m.urls[id]; exists && record.UserID == userID {
+			record.IsDeleted = true
+			m.urls[id] = record
+		}
+	}
+	return nil
 }
 
 func (m *MockStorage) Ping() error {
@@ -511,6 +529,67 @@ func TestGetUserURLs(t *testing.T) {
 				assert.Len(t, urls, test.expectedCount,
 					"Expected %d URLs, got %d", test.expectedCount, len(urls))
 			}
+		})
+	}
+}
+func TestDeleteURLs(t *testing.T) {
+	mockStorage := NewMockStorage()
+	handler := NewHandler(mockStorage, config.HOST)
+
+	tests := []struct {
+		name           string
+		userID         string
+		urlIDs         []string
+		expectedStatus int
+	}{
+		{
+			name:           "Successful deletion",
+			userID:         "user",
+			urlIDs:         []string{"1"},
+			expectedStatus: http.StatusAccepted,
+		},
+		{
+			name:           "Delete non-existing URL",
+			userID:         "user",
+			urlIDs:         []string{"999"},
+			expectedStatus: http.StatusAccepted, // Все равно 202, даже если URL не найден
+		},
+		{
+			name:           "Delete other user's URL",
+			userID:         "user",
+			urlIDs:         []string{"2"},       // URL принадлежит пользователю "test"
+			expectedStatus: http.StatusAccepted, // Все равно 202, даже если не принадлежит
+		},
+		{
+			name:           "No user ID",
+			userID:         "",
+			urlIDs:         []string{"1"},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "Empty URL list",
+			userID:         "user",
+			urlIDs:         []string{},
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			body, _ := json.Marshal(test.urlIDs)
+			req := httptest.NewRequest("DELETE", "/api/user/urls", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			if test.userID != "" {
+				ctx := context.WithValue(req.Context(), middleware.UserIDKey, test.userID)
+				req = req.WithContext(ctx)
+			}
+
+			rr := httptest.NewRecorder()
+			handler.DeleteURLs(rr, req)
+
+			assert.Equal(t, test.expectedStatus, rr.Code,
+				"Expected status %d, got %d", test.expectedStatus, rr.Code)
 		})
 	}
 }

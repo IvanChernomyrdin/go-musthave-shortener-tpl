@@ -49,14 +49,15 @@ func main() {
 	}
 
 	if store == nil {
-		var err error
-		store, err = storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
+		fileStore, err := storage.NewFileStorage(cfg.FileStorage, cfg.BaseURL)
 		if err != nil {
 			log.Printf("Failed to create file storage: %v", err)
-			store = storage.NewMemoryStorage() // Всегда есть fallback
+			store = storage.NewMemoryStorage()
 			log.Println("Using in-memory storage")
+		} else {
+			store = fileStore
+			log.Println("Using file storage")
 		}
-		log.Println("Using file storage")
 	}
 
 	handler := handler.NewHandler(store, cfg.BaseURL)
@@ -74,18 +75,26 @@ func main() {
 	//получение или создание куки
 	r.Use(middleware.CookieMiddleware)
 
-	// переход по оригинальной ссылке
-	r.Get("/{id}", handler.RedirectURL)
-	// проверка подключения db postgres
-	r.Get("/ping", handler.PingPostgres)
-	// вернуть все сокращённые urls пользователя
-	r.Get("/api/user/urls", handler.GetURLByUser)
-	// создание коротного url
-	r.Post("/", handler.CreateShortURL)
-	// {"url":"<some_url>"} получает и отдаёт {"result":"<short_url>"}
-	r.Post("/api/shorten", handler.CreateShortURLJson)
-	// принимает множество url для сокращения
-	r.Post("/api/shorten/batch", handler.CreateShortURLBatch)
+	r.Route("/", func(r chi.Router) {
+		// создание коротного url
+		r.Post("/", handler.CreateShortURL)
+		// переход по оригинальной ссылке
+		r.Get("/{id}", handler.RedirectURL)
+		// проверка подключения db postgres
+		r.Get("/ping", handler.PingPostgres)
+		r.Route("/api", func(r chi.Router) {
+			// {"url":"<some_url>"} получает и отдаёт {"result":"<short_url>"}
+			r.Post("/shorten", handler.CreateShortURLJson)
+			// принимает множество url для сокращения
+			r.Post("/shorten/batch", handler.CreateShortURLBatch)
+			r.Route("/user", func(r chi.Router) {
+				// вернуть все сокращённые urls пользователя
+				r.Get("/urls", handler.GetURLByUser)
+				// асинхронное удаление
+				r.Delete("/urls", handler.DeleteURLs)
+			})
+		})
+	})
 
 	// все остальные запросы
 	r.NotFound(handler.NotFoundHandler)

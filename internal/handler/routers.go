@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -116,6 +117,11 @@ func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	originalURL, exists := h.storage.Get(id)
 	if !exists {
 		http.Error(w, "URL not found", http.StatusNotFound)
+		return
+	}
+
+	if originalURL == "" && exists {
+		w.WriteHeader(http.StatusGone)
 		return
 	}
 
@@ -242,4 +248,29 @@ func (h *Handler) GetURLByUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(urls)
+}
+
+func (h *Handler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+	var urlIDs []string
+	if err := json.NewDecoder(r.Body).Decode(&urlIDs); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if len(urlIDs) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	go func() {
+		if err := h.storage.DeleteURLs(userID, urlIDs); err != nil {
+			log.Printf("Error deleting URLs: %v", err)
+		}
+	}()
+	w.WriteHeader(http.StatusAccepted)
 }
