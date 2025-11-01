@@ -16,8 +16,8 @@ type URLRecord struct {
 }
 
 type OriginalAndShortURLs struct {
-	OriginalURL string
-	ShortURL    string
+	OriginalURL string `json:"original_url"`
+	ShortURL    string `json:"short_url"`
 }
 
 type FileStorage struct {
