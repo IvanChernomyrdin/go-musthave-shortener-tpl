@@ -135,13 +135,13 @@ func TestRouters(t *testing.T) {
 			name:           "GET / with empty ID",
 			method:         "GET",
 			path:           "/",
-			expectedStatus: http.StatusBadRequest,
+			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
 			name:           "PUT method not allowed",
 			method:         "PUT",
 			path:           "/",
-			expectedStatus: http.StatusBadRequest,
+			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
 			name:           "Unknown path",
