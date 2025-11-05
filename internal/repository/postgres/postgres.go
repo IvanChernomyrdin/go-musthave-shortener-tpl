@@ -86,7 +86,7 @@ func (p *PostgresStorage) Get(id string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	if !isDeleted {
+	if isDeleted {
 		return "", true
 	}
 	return originalURL, true
