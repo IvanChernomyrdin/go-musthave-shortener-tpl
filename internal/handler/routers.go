@@ -120,7 +120,7 @@ func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if originalURL == "" && exists {
+	if originalURL == "" {
 		w.WriteHeader(http.StatusGone)
 		return
 	}
