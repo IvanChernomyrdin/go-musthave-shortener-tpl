@@ -79,7 +79,7 @@ func (p *PostgresStorage) Get(id string) (string, bool) {
 	var originalURL string
 	var isDeleted bool
 	err := p.db.QueryRow(
-		`SELECT original_url, is_deleted FROM short_urls WHERE id = $1 AND is_deleted = false`,
+		`SELECT original_url, is_deleted FROM short_urls WHERE id = $1`,
 		id,
 	).Scan(&originalURL, &isDeleted)
 
